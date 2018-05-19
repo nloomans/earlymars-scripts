@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# Enable bash safe mode
+set -eo pipefail
+
+# Save the script pwd
+script_pwd="$(cd "$(dirname "$0")"; pwd -P)"
+
+# Ensure that we are root, run with sudo if not
+if [ "$EUID" -ne 0 ]; then
+	sudo $0 $@
+	exit
+fi
+
+echo "--> Creating temp dir..."
+tmpdir="$(mktemp -d)"
+cleanup() {
+	rm -rf "$tmpdir"
+}
+trap cleanup EXIT
+cd "$tmpdir"
+
+echo "--> Cloning repo..."
+git clone https://github.com/nloomans/noahloomans.com.git .
+
+echo "--> Running jekyll build..."
+jekyll build -d /var/www/noahloomans.com/html
+
+echo "--> Updating IPFS..."
+ipfs-update install latest
+
+echo "--> Restarting IPFS daemon..."
+systemctl restart ipfs
+
+echo "--> Adding site to ipfs network..."
+su ipfs -c "ipfs add -r /var/www/noahloomans.com/html"
+
+echo "--> Checking DNS..."
+$script_pwd/checkdns
+
+echo "--> Done, removing temp dir..."

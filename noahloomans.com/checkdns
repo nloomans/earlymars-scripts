@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Enable bash safe mode
+set -eo pipefail
+
+# Ensure that we are root, run with sudo if not
+if [ "$EUID" -ne 0 ]; then
+        sudo $0 $@
+        exit
+fi
+
+ipfs_stdout="$(su ipfs -c "ipfs add -rn /var/www/noahloomans.com/html")"
+dns_record="dnslink=/ipfs/$(echo "$ipfs_stdout" | tail -n 1 | cut -d ' ' -f 2)"
+
+if dig +short noahloomans.com txt | grep -q "$dns_record"; then
+        echo "DNS Record is up-to-date"
+else
+        echo "DNS Record needs to be updated!"
+        echo "Please add the following txt entry:"
+        echo "$dns_record"
+fi
